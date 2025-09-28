@@ -1,0 +1,51 @@
+{
+  "applications": {
+    "data_fetcher": {
+      "port": 5006,
+      "title": "Data Fetcher",
+      "description": "Configure and trigger data collection",
+      "auto_start": true
+    },
+    "data_analyzer": {
+      "port": 5007,
+      "title": "Time Series Analyzer",
+      "description": "Visualize and analyze collected data",
+      "auto_start": true
+    },
+    "data_manager": {
+      "port": 5008,
+      "title": "Data Manager",
+      "description": "Browse, backup, and export stored data",
+      "auto_start": true
+    },
+    "trigger_controller": {
+      "port": 5009,
+      "title": "Update Controller",
+      "description": "Manage manual triggers and schedules",
+      "auto_start": true
+    }
+  },
+  "navigation": {
+    "show_navigation_bar": true,
+    "navigation_style": "tabs",
+    "show_app_descriptions": true
+  },
+  "performance": {
+    "max_data_points_chart": 10000,
+    "async_operations": true,
+    "memory_limit_mb": 500,
+    "enable_profiling": false
+  },
+  "ui": {
+    "theme": "default",
+    "responsive_layout": true,
+    "show_progress_indicators": true,
+    "animation_enabled": true
+  },
+  "logging": {
+    "level": "INFO",
+    "log_to_file": true,
+    "log_file": "logs/app.log",
+    "max_log_size_mb": 10
+  }
+}

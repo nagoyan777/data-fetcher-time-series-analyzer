@@ -1,0 +1,54 @@
+{
+  "sources": [
+    {
+      "name": "weather_tokyo",
+      "url": "https://api.openweathermap.org/data/2.5/weather",
+      "method": "GET",
+      "headers": {
+        "Authorization": "Bearer YOUR_OPENWEATHER_API_KEY"
+      },
+      "params": {
+        "q": "Tokyo",
+        "units": "metric"
+      },
+      "data_path": "main.temp",
+      "description": "Tokyo temperature readings",
+      "enabled": true,
+      "update_frequency": "manual"
+    },
+    {
+      "name": "btc_price",
+      "url": "https://api.coingecko.com/api/v3/simple/price",
+      "method": "GET",
+      "params": {
+        "ids": "bitcoin",
+        "vs_currencies": "usd"
+      },
+      "data_path": "bitcoin.usd",
+      "description": "Bitcoin price in USD",
+      "enabled": true,
+      "update_frequency": "manual"
+    },
+    {
+      "name": "example_sensor",
+      "url": "http://192.168.1.100/api/sensor/temperature",
+      "method": "GET",
+      "headers": {
+        "Authorization": "Bearer YOUR_SENSOR_TOKEN"
+      },
+      "data_path": "value",
+      "description": "Local temperature sensor reading",
+      "enabled": false,
+      "update_frequency": "manual"
+    }
+  ],
+  "global_settings": {
+    "timeout": 30,
+    "max_retries": 3,
+    "retry_delay": 2,
+    "rate_limit": {
+      "requests_per_minute": 60,
+      "burst_limit": 10
+    }
+  }
+}

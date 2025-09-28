@@ -1,0 +1,35 @@
+{
+  "storage": {
+    "format": "json",
+    "base_directory": "data",
+    "subdirectories": {
+      "raw_data": "raw_data",
+      "processed_data": "processed_data",
+      "cache": "cache",
+      "backups": "backups"
+    },
+    "backup_frequency": "every_update",
+    "max_file_size_mb": 100,
+    "compression": false,
+    "retention_days": 365,
+    "auto_cleanup": true
+  },
+  "export": {
+    "default_format": "json",
+    "supported_formats": ["json", "csv", "xlsx"],
+    "include_metadata": true,
+    "timestamp_format": "ISO8601"
+  },
+  "caching": {
+    "enabled": true,
+    "cache_duration_minutes": 15,
+    "max_cache_size_mb": 50,
+    "auto_invalidate": true
+  },
+  "validation": {
+    "strict_mode": false,
+    "required_fields": ["timestamp", "value"],
+    "data_quality_checks": true,
+    "outlier_detection": true
+  }
+}

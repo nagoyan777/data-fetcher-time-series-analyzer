@@ -1,0 +1,63 @@
+# Data Fetcher & Time Series Analyzer - Core Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core Framework
+panel>=1.3.0                    # Web framework for multi-app GUI
+param>=1.13.0                   # Parameter management for Panel apps
+
+# Data Processing and Time Series
+pandas>=2.0.0                   # Data manipulation and time series analysis
+numpy>=1.24.0                   # Numerical computing
+
+# Visualization
+plotly>=5.15.0                  # Interactive time series charts
+
+# HTTP Requests and API Integration
+requests>=2.31.0                # Synchronous HTTP requests
+aiohttp>=3.8.0                  # Async HTTP client for performance
+
+# Date and Time Handling
+python-dateutil>=2.8.0          # Advanced date parsing and manipulation
+
+# Task Scheduling and Triggers
+schedule>=1.2.0                 # Task scheduling for manual triggers
+
+# Optional: Enhanced Performance (uncomment if needed)
+# uvloop>=0.17.0                # Fast asyncio event loop (Unix only)
+# orjson>=3.9.0                 # Fast JSON parsing
+
+# Built-in modules (no installation needed)
+# sqlite3 - Local data storage and caching
+# json - JSON handling for API responses and storage
+# asyncio - Async processing for non-blocking operations
+# concurrent.futures - Thread pool execution
+# pathlib - Path operations for file management
+# datetime - Date/time handling
+# logging - Application logging
+# hashlib - Data integrity checking
+# tempfile - Temporary file operations
+# os - Operating system interface
+# re - Regular expressions for data parsing
+
+# Development Dependencies (optional - uncomment for development)
+# pytest>=7.4.0                # Testing framework
+# black>=23.7.0                # Code formatting
+# flake8>=6.0.0                # Code linting
+
+# Analytics Dependencies (Needed for time series analysis)
+# scikit-learn>=1.3.0          # Machine learning for time series analysis
+# statsmodels>=0.14.0          # Statistical analysis and forecasting
+scipy>=1.11.0                  # Scientific computing
+
+# Performance Monitoring
+psutil>=5.9.0                  # System performance monitoring
+
+# Future Visualization Dependencies (Phase 3 - uncomment when needed)
+# bokeh>=3.2.0                 # Alternative visualization backend
+# matplotlib>=3.7.0            # Static plotting for exports
+# seaborn>=0.12.0              # Statistical visualization
+
+# Future Database Integration (Phase 4 - uncomment when needed)
+# sqlite3 (built-in)           # Local database storage
+# sqlalchemy>=2.0.20           # ORM for database operations
+# alembic>=1.12.0              # Database migrations
