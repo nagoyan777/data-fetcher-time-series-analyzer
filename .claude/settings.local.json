@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo $CONDA_DEFAULT_ENV)",
+      "Bash(python:*)",
+      "Bash(conda:*)",
+      "Read(//Users/akihironagoya/.pyenv/versions/miniforge3-22.11.1-4/**)",
+      "Bash(~/.pyenv/versions/miniforge3-22.11.1-4/envs/apps/bin/conda install -c conda-forge yfinance)",
+      "Bash(lsof:*)",
+      "Bash(curl:*)",
+      "Bash(find:*)",
+      "Bash(open:*)",
+      "Bash(for port in 5006 5007 5008 5009)",
+      "Bash(do echo:*)",
+      "Bash(done)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

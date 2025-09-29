@@ -1,26 +1,32 @@
-# Data Fetcher & Time Series Analyzer - Core Dependencies
+# US Stock Analysis & Investment Tracker - Core Dependencies
 # Install with: pip install -r requirements.txt
 
 # Core Framework
 panel>=1.3.0                    # Web framework for multi-app GUI
 param>=1.13.0                   # Parameter management for Panel apps
 
-# Data Processing and Time Series
-pandas>=2.0.0                   # Data manipulation and time series analysis
+# Database
+sqlite3                         # Built-in SQLite database (no installation needed)
+
+# Data Processing and Analysis
+pandas>=2.0.0                   # Data manipulation and analysis
 numpy>=1.24.0                   # Numerical computing
+scipy>=1.11.0                   # Scientific computing
 
 # Visualization
-plotly>=5.15.0                  # Interactive time series charts
+plotly>=5.15.0                  # Interactive stock charts (candlestick, etc.)
 
-# HTTP Requests and API Integration
-requests>=2.31.0                # Synchronous HTTP requests
-aiohttp>=3.8.0                  # Async HTTP client for performance
+# Stock Data APIs
+requests>=2.31.0                # HTTP requests for Alpha Vantage
+yfinance>=0.2.24                # Yahoo Finance API (backup data source)
+aiohttp>=3.8.0                  # Async HTTP client
+
+# Excel Export Support
+openpyxl>=3.1.0                 # Excel file reading/writing
+xlsxwriter>=3.1.0               # Excel file creation
 
 # Date and Time Handling
-python-dateutil>=2.8.0          # Advanced date parsing and manipulation
-
-# Task Scheduling and Triggers
-schedule>=1.2.0                 # Task scheduling for manual triggers
+python-dateutil>=2.8.0          # Advanced date parsing
 
 # Optional: Enhanced Performance (uncomment if needed)
 # uvloop>=0.17.0                # Fast asyncio event loop (Unix only)

@@ -1,55 +1,55 @@
-# CLAUDE.md - Data Fetcher & Time Series Analyzer
+# CLAUDE.md - US Stock Analysis & Investment Tracker
 
 ## Project Overview
-A comprehensive Panel-based data fetching and time series analysis platform with manual trigger controls, responsive UX, and local storage management. The application emphasizes user-controlled data collection with powerful time series visualization for personal analytics workflows.
+A comprehensive Panel-based US stock analysis and personal investment tracking platform with SBI Securities integration. The application focuses on long-term investment analysis, portfolio P&L tracking, and market research for tech/growth/value investing strategies. Designed for personal analytics workflows with 10+ year data retention capabilities.
 
 ## Project Structure
 ```
-data_fetcher_mock/
+stock_analysis_platform/
 ├── main.py                      # Multi-app launcher
 ├── apps/                        # Individual Panel applications
-│   ├── data_fetcher_app.py      # Data fetching interface
-│   ├── data_analyzer_app.py     # Time series analysis
-│   ├── data_manager_app.py      # Storage management
-│   └── trigger_controller_app.py # Update controls
+│   ├── data_fetcher_app.py      # Market Explorer - stock research & data fetching
+│   ├── time_sync_app.py         # Portfolio Tracker - SBI investment tracking
+│   ├── data_analyzer_app.py     # Stock Analyzer - technical analysis & charts
+│   └── data_manager_app.py      # Database Manager - exports & maintenance
 ├── core/                        # Business logic
-│   ├── data_fetcher.py          # Fetching engine
-│   ├── storage_manager.py       # File operations
-│   ├── time_series_analyzer.py  # Analysis algorithms
-│   └── update_scheduler.py      # Trigger management
+│   ├── stock_data_fetcher.py    # Yahoo Finance API with caching & rate limiting
+│   ├── database_manager.py      # SQLite operations & schema management
+│   └── sbi_parser.py            # SBI Securities CSV parser (planned)
 ├── utils/                       # Shared utilities
 │   ├── shared_store.py          # Cross-app data sharing
-│   ├── api_client.py            # HTTP client with retry
-│   └── performance_utils.py     # Optimization tools
+│   ├── stock_screener.py        # Tech/Growth/Value filtering
+│   └── analysis_tools.py        # Long-term analysis functions
 └── data/                        # Local storage
-    ├── raw_data/                # Fetched data
-    ├── processed_data/          # Cleaned data
-    ├── cache/                   # API cache
-    └── backups/                 # Data backups
+    ├── stock_analysis.db         # SQLite database
+    ├── sbi_imports/             # SBI CSV files
+    ├── exports/                 # Reports & tax documents
+    └── backups/                 # Database backups
 ```
 
 ## Technology Stack
 - **Framework**: Panel (web framework for GUI)
-- **Data Processing**: pandas, numpy
-- **Visualization**: plotly
+- **Database**: SQLite (local database for 10+ year data retention)
+- **Data Processing**: pandas, numpy, sqlite3
+- **Visualization**: plotly (candlestick charts, portfolio dashboards)
+- **Stock API**: Yahoo Finance (primary with rate limiting & caching)
 - **HTTP Client**: requests, aiohttp
-- **Storage**: JSON files, local filesystem
-- **Async Processing**: asyncio
+- **Currency Data**: Federal Reserve API (USD/JPY rates)
 
 ## Key Features
-1. **Manual Trigger Controls**: User-initiated data fetching with one-click buttons
-2. **Multiple API Sources**: Support for REST APIs and JSON endpoints
-3. **Real-time Progress**: Live progress indicators and status updates
-4. **Interactive Visualization**: Plotly-based charts with zoom, pan, and hover
-5. **Local Storage**: JSON-based file storage with automatic timestamping
-6. **Data Versioning**: Automatic backups with rollback capability
-7. **Cross-App Navigation**: Seamless navigation between applications
+1. **US Stock Analysis**: Tech/Growth/Value stock research with 10+ year data
+2. **SBI Securities Integration**: CSV import parser for portfolio tracking
+3. **Portfolio P&L Tracking**: Cost basis, unrealized/realized gains, currency conversion
+4. **Long-term Analysis**: Market cycle analysis, sector rotation, performance attribution
+5. **Currency Handling**: USD/JPY conversion for Japanese tax reporting
+6. **Data Persistence**: SQLite database with automatic backup and export
+7. **Investment Categories**: Focused on Technology, Growth, and Value investing
 
 ## Applications
-- **Data Fetcher** (port 5006): Configure and trigger data collection
-- **Time Series Analyzer** (port 5007): Visualize and analyze collected data
-- **Data Manager** (port 5008): Browse, backup, and export stored data
-- **Update Controller** (port 5009): Manage manual triggers and schedules
+- **Market Explorer** (port 5006): US stock research, real-time quotes, historical data fetching
+- **Portfolio Tracker** (port 5007): SBI portfolio import, P&L tracking, performance metrics
+- **Stock Analyzer** (port 5008): Technical analysis, candlestick charts, indicators (SMA, RSI, Bollinger)
+- **Database Manager** (port 5009): Data export (JSON/CSV/Excel), backup, maintenance
 
 ## Installation & Setup
 ```bash
@@ -101,12 +101,18 @@ python main.py                  # Start all applications
 ```
 
 ## Configuration
-- API sources: `config/api_config.json`
-- Storage settings: `config/storage_config.json`
-- Application settings: `config/app_config.json`
+- Database: `data/stock_analysis.db` (SQLite)
+- Exports: `data/exports/` (JSON default, CSV, Excel)
+- Backups: `data/backups/` (automated SQLite backups)
+- SBI Imports: `data/sbi_imports/` (CSV files)
 
 ## Data Format
-Time series data stored in JSON format with metadata, schema, and data arrays. Each record includes timestamp, value, unit, and quality indicators.
+- **Database Schema**: SQLite with tables for stocks, prices, portfolio, transactions, exchange rates
+- **Export Formats**:
+  - JSON (default): Single file with structured data and metadata
+  - CSV: Multiple files for complex exports
+  - Excel: Multi-sheet workbooks
+- **Stock Data**: OHLCV with adjusted close, stored with daily granularity
 
 ## Performance Targets
 - Data fetch operations: < 5 seconds
@@ -121,10 +127,23 @@ The application emphasizes user control over automatic operations:
 - Real-time status updates for all operations
 - User confirmation for important operations
 
+## Current Implementation Status (✅ Completed)
+- **Market Explorer**: Fetch real-time quotes, download historical data for 19 pre-configured stocks
+- **Portfolio Tracker**: Ready for SBI CSV import, P&L calculations, currency conversion
+- **Stock Analyzer**: Candlestick charts with SMA, RSI, Bollinger Bands indicators
+- **Database Manager**: Export to JSON (default), CSV, Excel; backup & optimization tools
+- **Rate Limiting**: 2-second delay between API calls with 5-minute caching
+- **Error Handling**: Graceful handling of API limits, empty data, invalid symbols
+
+## Known Limitations
+- Yahoo Finance API rate limiting (mitigated with caching)
+- SBI CSV parser not yet implemented (manual portfolio entry required)
+- Limited to pre-configured stock list (can be expanded in database)
+
 ## Roadmap
-- **Phase 1** (Current): Basic Panel multi-app structure, manual data fetching, local storage
-- **Phase 2** (Next): Advanced time series analysis, multiple data source management
-- **Phase 3** (Future): Custom dashboard creation, data source plugins, machine learning integration
+- **Phase 1** ✅ (Completed): Panel multi-app structure, Yahoo Finance integration, SQLite database
+- **Phase 2** (Next): SBI CSV parser implementation, portfolio performance analytics
+- **Phase 3** (Future): Additional technical indicators, backtesting, ML predictions
 
 ## Documentation
 - [README.md](README.md) - User guide and quick start

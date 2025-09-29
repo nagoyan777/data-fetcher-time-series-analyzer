@@ -1,261 +1,473 @@
 """
-Update Controller App - Panel Implementation
-Manual trigger management and update scheduling interface
+Portfolio Tracker App - SBI Securities Integration & P&L Analysis
+Import SBI transactions, track portfolio performance, and analyze investments
 """
 import panel as pn
 import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
 from datetime import datetime, timedelta
+import asyncio
+import io
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.shared_store import shared_store
 from utils.navigation import create_navigation_bar, create_quick_actions_panel, create_app_status_indicator
 
-class TriggerControllerApp:
-    """Manual update triggers and scheduling interface"""
+class PortfolioTrackerApp:
+    """SBI Securities portfolio tracking and P&L analysis"""
 
     def __init__(self):
-        self.update_all_button = pn.widgets.Button(
-            name="🔄 Update All Sources",
+        # File upload for SBI CSV
+        self.file_input = pn.widgets.FileInput(
+            accept='.csv',
+            multiple=False,
+            name="Upload SBI CSV File",
+            width=300
+        )
+
+        # Currency display toggle
+        self.currency_display = pn.widgets.RadioButtonGroup(
+            name="Display Currency",
+            options=["USD", "JPY", "Both"],
+            value="USD",
+            button_type="primary"
+        )
+
+        # Action buttons
+        self.import_button = pn.widgets.Button(
+            name="📥 Import Transactions",
             button_type="primary",
             width=200
         )
 
-        self.emergency_stop_button = pn.widgets.Button(
-            name="🛑 Emergency Stop",
-            button_type="danger",
+        self.refresh_button = pn.widgets.Button(
+            name="🔄 Refresh Portfolio",
+            button_type="success",
             width=200
         )
 
-        self.reminder_interval = pn.widgets.Select(
-            name="Reminder Interval",
-            options=['15 minutes', '1 hour', '4 hours', '12 hours', '24 hours'],
-            value='1 hour'
-        )
-
-        self.set_reminder_button = pn.widgets.Button(
-            name="⏰ Set Reminder",
+        self.export_button = pn.widgets.Button(
+            name="📊 Export Report",
             button_type="light",
             width=200
         )
 
-        self.update_history = pn.widgets.Tabulator(
-            value=pd.DataFrame(columns=['Time', 'Action', 'Status', 'Details']),
-            pagination='remote',
-            page_size=10,
-            height=300
+        # Progress and status
+        self.progress_bar = pn.indicators.Progress(
+            name="Operation Progress",
+            value=0,
+            width=400,
+            bar_color="success"
         )
 
-        self.system_status = pn.pane.HTML(
-            """<div style="padding: 15px; background: #f8f9fa; border-radius: 5px;">
-            Loading system status...
+        self.status_indicator = pn.pane.HTML(
+            """<div style="padding: 10px; background: #e9ecef; border-radius: 5px;">
+            <strong>Status:</strong> Ready to import SBI transactions
             </div>""",
             width=400
         )
 
-        # Setup callbacks
-        self.update_all_button.on_click(self.trigger_update_all)
-        self.emergency_stop_button.on_click(self.emergency_stop)
-        self.set_reminder_button.on_click(self.set_reminder)
+        # Portfolio overview
+        self.portfolio_overview = pn.pane.HTML(
+            self._create_empty_overview(),
+            width=400,
+            height=300
+        )
 
-        # Load initial status
-        self.update_system_status()
-        self.load_update_history()
+        # Holdings table
+        self.holdings_table = pn.widgets.Tabulator(
+            value=pd.DataFrame(),
+            pagination='remote',
+            page_size=10,
+            height=300,
+            sizing_mode='stretch_width'
+        )
+
+        # Transactions table
+        self.transactions_table = pn.widgets.Tabulator(
+            value=pd.DataFrame(),
+            pagination='remote',
+            page_size=15,
+            height=300,
+            sizing_mode='stretch_width'
+        )
+
+        # Portfolio allocation chart
+        self.allocation_chart = pn.pane.Plotly(
+            object=self._create_empty_chart("Portfolio Allocation"),
+            height=400,
+            width=500
+        )
+
+        # Performance chart
+        self.performance_chart = pn.pane.Plotly(
+            object=self._create_empty_chart("Portfolio Performance"),
+            height=400,
+            sizing_mode='stretch_width'
+        )
+
+        # Exchange rate info
+        self.exchange_rate_info = pn.pane.HTML(
+            self._create_exchange_rate_info(),
+            width=400,
+            height=100
+        )
+
+        # Setup callbacks
+        self.import_button.on_click(self._import_sbi_transactions)
+        self.refresh_button.on_click(self._refresh_portfolio)
+        self.export_button.on_click(self._export_portfolio_report)
+        self.currency_display.param.watch(self._on_currency_change, 'value')
+
+        # Load initial data
+        self._load_portfolio_data()
 
     def create_app(self):
-        """Create the update controller interface"""
+        """Create the portfolio tracker interface"""
 
         # Navigation bar
-        navigation = create_navigation_bar(current_app='update_controller')
+        navigation = create_navigation_bar(current_app='portfolio_tracker')
 
         # Status indicator
         status = create_app_status_indicator()
 
         # Header
         header = pn.pane.HTML("""
-        <div style="background: linear-gradient(90deg, #fd7e14, #e8590c); padding: 20px; color: white; border-radius: 5px; margin-bottom: 20px;">
-            <h2 style="margin: 0;">⚡ Update Controller - Manual Triggers</h2>
-            <p style="margin: 5px 0 0 0;">Manage manual triggers and update schedules</p>
+        <div style="background: linear-gradient(90deg, #6A5ACD, #9370DB); padding: 20px; color: white; border-radius: 5px; margin-bottom: 20px;">
+            <h2 style="margin: 0;">💼 Portfolio Tracker - SBI Investment Analysis</h2>
+            <p style="margin: 5px 0 0 0;">Import SBI transactions, track P&L, and analyze portfolio performance</p>
         </div>
         """, sizing_mode='stretch_width')
 
-        # Control panel
-        control_panel = pn.Column(
-            "## 🎛️ Manual Controls",
-            self.update_all_button,
-            self.emergency_stop_button,
-            pn.pane.HTML("""
-            <div style="background: #e9ecef; padding: 10px; border-radius: 3px; margin: 10px 0;">
-                <strong>⚡ Manual Philosophy:</strong><br>
-                All data updates are user-triggered.<br>
-                No automatic background updates.
-            </div>
-            """),
-            "## ⏰ Reminder System",
-            self.reminder_interval,
-            self.set_reminder_button,
-            pn.pane.HTML("""
-            <div style="background: #fff3cd; padding: 10px; border-radius: 3px; margin: 10px 0;">
-                <strong>💡 Reminders:</strong><br>
-                Get notifications when to manually update data.<br>
-                Still requires manual trigger action.
-            </div>
-            """),
+        # Import panel
+        import_panel = pn.Column(
+            "## 📥 Import SBI Data",
+            self.file_input,
+            self.import_button,
+            "## ⚙️ Settings",
+            self.currency_display,
+            "## ⚡ Actions",
+            pn.Row(self.refresh_button, self.export_button),
+            "## 💱 Exchange Rate",
+            self.exchange_rate_info,
             width=400
         )
 
-        # Status panel
-        status_panel = pn.Column(
-            "## 📊 System Status",
-            self.system_status,
-            "## 📋 Update History",
-            self.update_history,
+        # Overview panel
+        overview_panel = pn.Column(
+            "## 📊 Portfolio Overview",
+            self.progress_bar,
+            self.status_indicator,
+            self.portfolio_overview,
+            self.allocation_chart,
+            width=500
+        )
+
+        # Holdings panel
+        holdings_panel = pn.Column(
+            "## 📋 Current Holdings",
+            self.holdings_table,
+            "## 📈 Performance Analysis",
+            self.performance_chart,
             sizing_mode='stretch_width'
         )
 
-        # Main layout
+        # Transactions panel
+        transactions_panel = pn.Column(
+            "## 📝 Transaction History",
+            self.transactions_table,
+            sizing_mode='stretch_width'
+        )
+
+        # Main layout with tabs
+        tabs = pn.Tabs(
+            ("Portfolio Overview", pn.Row(import_panel, overview_panel, holdings_panel, sizing_mode='stretch_width')),
+            ("Transaction History", transactions_panel),
+            dynamic=True,
+            sizing_mode='stretch_width'
+        )
+
         return pn.Column(
             navigation,
             status,
             header,
-            pn.Row(
-                control_panel,
-                status_panel,
-                sizing_mode='stretch_width'
-            ),
+            tabs,
             sizing_mode='stretch_width'
         )
 
-    def trigger_update_all(self, event):
-        """Trigger update for all configured data sources"""
+    async def _import_sbi_transactions(self, event):
+        """Import SBI CSV transactions"""
+        if not self.file_input.value:
+            self.update_status("❌ Please select a CSV file first", "error")
+            return
+
+        self.progress_bar.value = 0
+        self.update_status("📥 Importing SBI transactions...", "info")
+
         try:
-            # Log the update trigger event
-            self.log_update_event("Manual Update All", "triggered", "User initiated update for all sources")
+            # Get file data
+            file_data = self.file_input.value
+            self.progress_bar.value = 25
 
-            # In a full implementation, this would:
-            # 1. Load API configurations
-            # 2. Trigger data fetching for each source
-            # 3. Update progress indicators
-            # 4. Log results
+            # Save file temporarily
+            temp_file = f"/tmp/sbi_import_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            with open(temp_file, 'wb') as f:
+                f.write(file_data)
 
-            print("Triggering update for all data sources...")
+            self.progress_bar.value = 50
 
-            # For now, simulate the action
-            self.log_update_event("Manual Update All", "completed", "All sources updated successfully")
-            self.update_system_status()
-            self.load_update_history()
+            # Import using shared store
+            result = shared_store.import_sbi_csv(temp_file)
+            self.progress_bar.value = 75
 
-            self.update_status("✅ Update triggered for all sources")
+            if result['success']:
+                self.progress_bar.value = 100
+                self.update_status(
+                    f"✅ Imported {result['saved_transactions']}/{result['total_transactions']} transactions",
+                    "success"
+                )
 
-        except Exception as e:
-            self.log_update_event("Manual Update All", "failed", f"Error: {str(e)}")
-            self.update_status(f"❌ Update failed: {str(e)}")
-
-    def emergency_stop(self, event):
-        """Emergency stop for all running operations"""
-        try:
-            self.log_update_event("Emergency Stop", "executed", "All operations stopped by user")
-
-            print("Emergency stop activated - stopping all operations")
-
-            self.update_status("🛑 Emergency stop activated - all operations halted")
-            self.load_update_history()
-
-        except Exception as e:
-            self.update_status(f"❌ Emergency stop failed: {str(e)}")
-
-    def set_reminder(self, event):
-        """Set update reminder"""
-        try:
-            interval = self.reminder_interval.value
-
-            # In a full implementation, this would set up actual notifications
-            self.log_update_event("Reminder Set", "configured", f"Reminder interval: {interval}")
-
-            print(f"Reminder set for: {interval}")
-
-            self.update_status(f"⏰ Reminder set for every {interval}")
-            self.load_update_history()
-
-        except Exception as e:
-            self.update_status(f"❌ Failed to set reminder: {str(e)}")
-
-    def log_update_event(self, action, status, details):
-        """Log an update event to shared store"""
-        try:
-            event_data = {
-                'timestamp': datetime.now().isoformat(),
-                'action': action,
-                'status': status,
-                'details': details,
-                'source': 'update_controller'
-            }
-
-            # Save to shared store fetch history (reusing the mechanism)
-            shared_store.save_fetch_event(event_data)
-
-        except Exception as e:
-            print(f"Error logging update event: {e}")
-
-    def load_update_history(self):
-        """Load and display update history"""
-        try:
-            history = shared_store.load_fetch_history()
-
-            if history:
-                df = pd.DataFrame(history)
-                df['Time'] = pd.to_datetime(df['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
-                df['Action'] = df.get('action', df.get('source', 'Unknown'))
-                df['Status'] = df['status'].str.title()
-                df['Details'] = df.get('details', df.get('value', 'No details'))
-
-                # Show most recent events first
-                display_df = df[['Time', 'Action', 'Status', 'Details']].tail(20).iloc[::-1]
-                self.update_history.value = display_df
+                # Refresh portfolio data
+                await self._refresh_portfolio(None)
             else:
-                # Empty history
-                empty_df = pd.DataFrame(columns=['Time', 'Action', 'Status', 'Details'])
-                self.update_history.value = empty_df
+                self.update_status(f"❌ Import error: {result.get('error', 'Unknown error')}", "error")
+
+            # Clean up temp file
+            os.unlink(temp_file)
 
         except Exception as e:
-            print(f"Error loading update history: {e}")
+            self.progress_bar.value = 0
+            self.update_status(f"❌ Import error: {str(e)}", "error")
 
-    def update_system_status(self):
-        """Update system status display"""
+    async def _refresh_portfolio(self, event):
+        """Refresh portfolio data and calculations"""
+        self.progress_bar.value = 0
+        self.update_status("🔄 Refreshing portfolio data...", "info")
+
         try:
-            status = shared_store.get_status()
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            self.progress_bar.value = 25
 
-            # Calculate status indicators
-            data_status = "🟢 Active" if status['time_series_available'] else "🔴 No Data"
-            config_status = "🟢 Configured" if status['api_config_available'] else "🟡 Default"
+            # Update exchange rates
+            shared_store.update_exchange_rates()
+            self.progress_bar.value = 50
 
-            status_html = f"""
-            <div style="background: #d4edda; padding: 15px; border-radius: 5px; border: 1px solid #c3e6cb;">
-                <h4 style="margin-top: 0; color: #155724;">🔄 System Status</h4>
-                <table style="width: 100%;">
-                    <tr><td><strong>Current Time:</strong></td><td>{current_time}</td></tr>
-                    <tr><td><strong>Data Status:</strong></td><td>{data_status}</td></tr>
-                    <tr><td><strong>Config Status:</strong></td><td>{config_status}</td></tr>
-                    <tr><td><strong>Last Update:</strong></td><td>{status['last_updated'][:19] if status['last_updated'] != 'Never' else 'Never'}</td></tr>
-                    <tr><td><strong>Update Events:</strong></td><td>{status['fetch_history_count']}</td></tr>
-                    <tr><td><strong>Data Points:</strong></td><td>{status['data_info']['data_points']}</td></tr>
-                </table>
-                <div style="margin-top: 10px; padding: 8px; background: #c3e6cb; border-radius: 3px;">
-                    <strong>🎯 Manual Control Active:</strong> All updates require user triggers
+            # Load portfolio data
+            self._load_portfolio_data()
+            self.progress_bar.value = 75
+
+            # Update charts
+            self._update_charts()
+            self.progress_bar.value = 100
+
+            self.update_status("✅ Portfolio data refreshed successfully", "success")
+
+        except Exception as e:
+            self.progress_bar.value = 0
+            self.update_status(f"❌ Refresh error: {str(e)}", "error")
+
+    async def _export_portfolio_report(self, event):
+        """Export portfolio report"""
+        self.update_status("📊 Generating portfolio report...", "info")
+
+        try:
+            report_path = shared_store.export_portfolio_report()
+
+            if report_path:
+                self.update_status(f"✅ Report exported: {report_path}", "success")
+            else:
+                self.update_status("❌ Export failed", "error")
+
+        except Exception as e:
+            self.update_status(f"❌ Export error: {str(e)}", "error")
+
+    def _on_currency_change(self, event):
+        """Handle currency display change"""
+        self._load_portfolio_data()
+        self._update_charts()
+
+    def _load_portfolio_data(self):
+        """Load and display portfolio data"""
+        try:
+            # Load holdings
+            holdings = shared_store.get_portfolio_summary()
+
+            if not holdings.empty:
+                # Format holdings for display
+                display_holdings = holdings.copy()
+
+                if self.currency_display.value == "USD":
+                    display_holdings = display_holdings[['symbol', 'name', 'total_shares', 'avg_cost_usd', 'total_invested_usd']]
+                    display_holdings.columns = ['Symbol', 'Company', 'Shares', 'Avg Cost', 'Total Invested']
+                elif self.currency_display.value == "JPY":
+                    # Convert to JPY (would need current prices)
+                    pass  # Implement JPY display
+                else:  # Both
+                    pass  # Implement both currencies
+
+                self.holdings_table.value = display_holdings
+
+                # Update overview
+                self._update_portfolio_overview(holdings)
+            else:
+                self.holdings_table.value = pd.DataFrame(columns=['Symbol', 'Company', 'Shares', 'Avg Cost', 'Total Invested'])
+
+            # Load transactions
+            transactions = shared_store.get_portfolio_transactions()
+
+            if not transactions.empty:
+                # Format transactions for display
+                display_transactions = transactions[['date', 'symbol', 'action', 'quantity', 'price_usd', 'total_usd']].copy()
+                display_transactions.columns = ['Date', 'Symbol', 'Action', 'Quantity', 'Price USD', 'Total USD']
+                display_transactions = display_transactions.sort_values('Date', ascending=False)
+                self.transactions_table.value = display_transactions
+            else:
+                self.transactions_table.value = pd.DataFrame(columns=['Date', 'Symbol', 'Action', 'Quantity', 'Price USD', 'Total USD'])
+
+        except Exception as e:
+            print(f"Error loading portfolio data: {e}")
+
+    def _update_portfolio_overview(self, holdings):
+        """Update portfolio overview panel"""
+        try:
+            # Calculate portfolio performance
+            performance = shared_store.calculate_portfolio_performance()
+
+            if performance['success']:
+                total_invested = performance['total_invested_usd']
+                current_value = performance['current_value_usd']
+                total_return = performance['total_return_pct']
+                unrealized_pnl = performance['unrealized_pnl_usd']
+
+                overview_html = f"""
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; font-family: 'Arial', sans-serif;">
+                    <h4 style="margin-top: 0; color: #495057;">Portfolio Summary</h4>
+                    <table style="width: 100%; font-size: 14px;">
+                        <tr><td><strong>Total Invested:</strong></td><td>${total_invested:,.2f}</td></tr>
+                        <tr><td><strong>Current Value:</strong></td><td>${current_value:,.2f}</td></tr>
+                        <tr><td><strong>Unrealized P&L:</strong></td><td style="color: {'green' if unrealized_pnl >= 0 else 'red'}">${unrealized_pnl:,.2f}</td></tr>
+                        <tr><td><strong>Total Return:</strong></td><td style="color: {'green' if total_return >= 0 else 'red'}">{total_return:.2f}%</td></tr>
+                        <tr><td><strong>Holdings:</strong></td><td>{len(holdings)} stocks</td></tr>
+                        <tr><td><strong>Last Updated:</strong></td><td>{performance['last_updated'][:19]}</td></tr>
+                    </table>
+                </div>
+                """
+            else:
+                overview_html = f"""
+                <div style="background: #f8d7da; padding: 15px; border-radius: 5px; color: #721c24;">
+                    <h4 style="margin-top: 0;">Portfolio Summary</h4>
+                    <p>Error calculating performance: {performance.get('error', 'Unknown error')}</p>
+                </div>
+                """
+
+            self.portfolio_overview.object = overview_html
+
+        except Exception as e:
+            self.portfolio_overview.object = self._create_empty_overview()
+
+    def _update_charts(self):
+        """Update portfolio charts"""
+        try:
+            holdings = shared_store.get_portfolio_summary()
+
+            if not holdings.empty:
+                # Create allocation pie chart
+                allocation_fig = px.pie(
+                    holdings,
+                    values='total_invested_usd',
+                    names='symbol',
+                    title="Portfolio Allocation by Investment"
+                )
+                allocation_fig.update_layout(height=400)
+                self.allocation_chart.object = allocation_fig
+
+                # Create performance chart (placeholder - would need historical data)
+                performance_fig = go.Figure()
+                performance_fig.add_annotation(
+                    text="Performance chart requires historical portfolio data<br>Will be implemented with transaction history",
+                    xref="paper", yref="paper",
+                    x=0.5, y=0.5,
+                    showarrow=False,
+                    font=dict(size=14, color="gray")
+                )
+                performance_fig.update_layout(
+                    title="Portfolio Performance vs Market",
+                    height=400,
+                    template='plotly_white'
+                )
+                self.performance_chart.object = performance_fig
+
+            else:
+                self.allocation_chart.object = self._create_empty_chart("Portfolio Allocation")
+                self.performance_chart.object = self._create_empty_chart("Portfolio Performance")
+
+        except Exception as e:
+            print(f"Error updating charts: {e}")
+
+    def _create_empty_chart(self, title):
+        """Create empty chart placeholder"""
+        fig = go.Figure()
+        fig.add_annotation(
+            text=f"No data available<br>Import SBI transactions to view {title.lower()}",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5,
+            showarrow=False,
+            font=dict(size=16, color="gray")
+        )
+        fig.update_layout(
+            title=title,
+            height=400,
+            template='plotly_white'
+        )
+        return fig
+
+    def _create_empty_overview(self):
+        """Create empty portfolio overview"""
+        return """
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px;">
+            <h4 style="margin-top: 0;">Portfolio Summary</h4>
+            <p style="color: #666; margin: 0;">Import SBI transactions to view portfolio overview</p>
+        </div>
+        """
+
+    def _create_exchange_rate_info(self):
+        """Create exchange rate information panel"""
+        try:
+            rate = shared_store.get_latest_exchange_rate()
+            return f"""
+            <div style="background: #e7f3ff; padding: 10px; border-radius: 5px; border: 1px solid #b3d7ff;">
+                <h6 style="margin-top: 0; color: #004085;">💱 USD/JPY Exchange Rate</h6>
+                <div style="font-size: 14px; font-weight: bold;">
+                    1 USD = {rate:.2f} JPY
+                </div>
+                <div style="font-size: 11px; color: #666;">
+                    Used for portfolio valuation
                 </div>
             </div>
             """
-            self.system_status.object = status_html
-
-        except Exception as e:
-            self.system_status.object = f"""
-            <div style="background: #f8d7da; padding: 10px; border-radius: 5px; color: #721c24;">
-                Error loading system status: {str(e)}
+        except:
+            return """
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                <h6 style="margin-top: 0;">💱 Exchange Rate</h6>
+                <p style="margin: 0; font-size: 12px;">Loading rate...</p>
             </div>
             """
 
-    def update_status(self, message):
-        """Update status (placeholder for now)"""
-        print(f"Update Controller: {message}")
-        # In a full implementation, this would update a status indicator
+    def update_status(self, message, status_type="info"):
+        """Update status indicator with color coding"""
+        colors = {
+            "info": "#007bff",
+            "success": "#28a745",
+            "warning": "#ffc107",
+            "error": "#dc3545"
+        }
+
+        self.status_indicator.object = f"""
+        <div style="padding: 10px; background: {colors.get(status_type, '#e9ecef')}; color: white; border-radius: 5px;">
+            <strong>Status:</strong> {message}
+        </div>
+        """
+
+# Backward compatibility alias
+TriggerControllerApp = PortfolioTrackerApp

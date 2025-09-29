@@ -1,32 +1,31 @@
 #!/usr/bin/env python3
 """
-Data Fetcher & Time Series Analyzer - Multi-App Launcher
-Panel-based multi-app suite for personal time series analytics workflows
-Adapted from literature analysis project architecture
+US Stock Analysis & Investment Tracker - Multi-App Launcher
+Panel-based platform for stock research, SBI portfolio tracking, and long-term analysis
 """
 import panel as pn
-from apps.data_fetcher_app import DataFetcherApp
-from apps.data_analyzer_app import DataAnalyzerApp
-from apps.data_manager_app import DataManagerApp
-from apps.trigger_controller_app import TriggerControllerApp
+from apps.data_fetcher_app import MarketExplorerApp
+from apps.data_analyzer_app import StockAnalyzerApp
+from apps.data_manager_app import DatabaseManagerApp
+from apps.trigger_controller_app import PortfolioTrackerApp
 
 # Enable Panel extensions
 pn.extension('plotly', 'tabulator', template='material')
 
 def create_apps():
-    """Create and configure all apps"""
+    """Create and configure all stock analysis apps"""
 
     # Initialize apps
-    fetcher_app = DataFetcherApp()
-    analyzer_app = DataAnalyzerApp()
-    manager_app = DataManagerApp()
-    controller_app = TriggerControllerApp()
+    market_explorer = MarketExplorerApp()
+    stock_analyzer = StockAnalyzerApp()
+    data_manager = DatabaseManagerApp()
+    portfolio_tracker = PortfolioTrackerApp()
 
     return {
-        'data_fetcher': fetcher_app.create_app(),
-        'time_series_analyzer': analyzer_app.create_app(),
-        'data_manager': manager_app.create_app(),
-        'update_controller': controller_app.create_app()
+        'market_explorer': market_explorer.create_app(),
+        'stock_analyzer': stock_analyzer.create_app(),
+        'data_manager': data_manager.create_app(),
+        'portfolio_tracker': portfolio_tracker.create_app()
     }
 
 def create_navigation_bar():
@@ -48,7 +47,7 @@ def create_navigation_bar():
 
 if __name__ == "__main__":
 
-    print("🚀 Starting Data Fetcher & Time Series Analyzer Suite...")
+    print("🚀 Starting US Stock Analysis & Investment Tracker Suite...")
     print("=" * 60)
 
     # Create apps
@@ -56,25 +55,25 @@ if __name__ == "__main__":
 
     # Configure multi-app setup
     app_configs = {
-        'data_fetcher': {
+        'market_explorer': {
             'port': 5006,
-            'title': 'Data Fetcher - Time Series Analytics',
-            'description': 'Configure and trigger data collection from APIs'
+            'title': 'Market Explorer - US Stock Research',
+            'description': 'Research stocks, analyze market trends, and screen investments'
         },
-        'time_series_analyzer': {
+        'stock_analyzer': {
             'port': 5007,
-            'title': 'Time Series Analyzer - Analytics Dashboard',
-            'description': 'Visualize and analyze collected time series data'
+            'title': 'Stock Analyzer - Advanced Charts & Analysis',
+            'description': 'Candlestick charts, technical indicators, and performance analysis'
         },
         'data_manager': {
             'port': 5008,
-            'title': 'Data Manager - Storage & Export',
-            'description': 'Browse, backup, and export stored data'
+            'title': 'Database Manager - SQLite Operations & Export',
+            'description': 'Manage stock database, export portfolio reports, and maintain data integrity'
         },
-        'update_controller': {
+        'portfolio_tracker': {
             'port': 5009,
-            'title': 'Update Controller - Manual Triggers',
-            'description': 'Manage manual triggers and update schedules'
+            'title': 'Portfolio Tracker - SBI Investment Tracking',
+            'description': 'Import SBI transactions, track P&L, and analyze portfolio performance'
         }
     }
 
@@ -139,20 +138,21 @@ if __name__ == "__main__":
             print("\n👋 Shutting down all apps...")
             pass
 
-        print("\n🎯 Implementation Features:")
-        print("- Multi-app architecture with responsive UX")
-        print("- Manual trigger controls for all data operations")
-        print("- Linear/Log Y-axis toggle in Time Series Analyzer")
-        print("- Cross-app data sharing and automatic backups")
-        print("- Non-blocking async operations")
-        print("\n⚡ Performance Benefits:")
-        print("- No UI freezing during data fetching")
-        print("- Progressive loading for large time series")
-        print("- Smart caching reduces redundant API calls")
-        print("- Real-time progress indicators")
+        print("\n🎯 Platform Features:")
+        print("- Multi-app stock analysis and portfolio tracking")
+        print("- SQLite database with 10+ year data retention")
+        print("- SBI Securities CSV import and P&L tracking")
+        print("- Real-time stock quotes and market data")
+        print("- Tech/Growth/Value investment focus")
+        print("- USD/JPY currency conversion")
+        print("\n📊 Analysis Capabilities:")
+        print("- Candlestick charts and technical indicators")
+        print("- Portfolio performance vs market benchmarks")
+        print("- Long-term trend analysis and sector comparison")
+        print("- Excel export for tax reporting")
 
     except KeyboardInterrupt:
-        print("\n👋 Shutting down Data Fetcher Suite...")
+        print("\n👋 Shutting down US Stock Analysis Suite...")
     except Exception as e:
         print(f"❌ Error starting apps: {e}")
-        print("Make sure Panel is installed: pip install -r requirements.txt")
+        print("Make sure dependencies are installed: pip install -r requirements.txt")

@@ -1,6 +1,6 @@
 """
-Time Series Analyzer App - Panel Implementation
-Interactive visualization with Linear/Log Y-axis toggle feature
+Stock Analyzer App - Advanced Charts & Technical Analysis
+Interactive stock visualization with technical indicators and comparative analysis
 """
 import panel as pn
 import pandas as pd
@@ -14,11 +14,72 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.shared_store import shared_store
 from utils.navigation import create_navigation_bar, create_quick_actions_panel, create_app_status_indicator
 
-class DataAnalyzerApp:
-    """Time series analysis and visualization with interactive controls"""
+class StockAnalyzerApp:
+    """Advanced stock chart analysis with technical indicators"""
 
     def __init__(self):
-        # Y-axis scale toggle
+        # Stock selection
+        stock_options = self._get_stock_options()
+        self.stock_selector = pn.widgets.Select(
+            name="Primary Stock",
+            options=stock_options,
+            value=stock_options[0][1] if stock_options else "AAPL",  # Use the value part
+            width=200
+        )
+
+        self.comparison_stock = pn.widgets.Select(
+            name="Compare With",
+            options=[("None", "")] + stock_options,
+            value="",
+            width=200
+        )
+
+        # Chart type selection
+        self.chart_type = pn.widgets.RadioButtonGroup(
+            name="Chart Type",
+            options=["Candlestick", "Line", "OHLC"],
+            value="Candlestick",
+            button_type="primary"
+        )
+
+        # Time period
+        self.time_period = pn.widgets.Select(
+            name="Time Period",
+            options=["1M", "3M", "6M", "1Y", "2Y", "5Y", "MAX"],
+            value="1Y",
+            width=150
+        )
+
+        # Technical indicators
+        self.show_volume = pn.widgets.Checkbox(
+            name="Show Volume",
+            value=True
+        )
+
+        self.show_sma = pn.widgets.Checkbox(
+            name="Simple Moving Averages",
+            value=False
+        )
+
+        self.sma_periods = pn.widgets.MultiSelect(
+            name="SMA Periods",
+            options=[20, 50, 100, 200],
+            value=[20, 50],
+            size=4,
+            width=150
+        )
+
+        self.show_bollinger = pn.widgets.Checkbox(
+            name="Bollinger Bands",
+            value=False
+        )
+
+        self.show_rsi = pn.widgets.Checkbox(
+            name="RSI (14)",
+            value=False
+        )
+
+        # Y-axis controls
         self.y_scale_toggle = pn.widgets.RadioButtonGroup(
             name='Y-Axis Scale',
             options=['Linear', 'Log'],
@@ -26,235 +87,161 @@ class DataAnalyzerApp:
             button_type='light'
         )
 
-        # === INDIVIDUAL AXIS CONTROLS (NEW FEATURE) ===
-        # Primary series scale (text input + slider)
-        self.primary_scale_text = pn.widgets.FloatInput(
-            name="Primary Scale Factor",
-            value=1.0,
-            step=0.1,
-            start=0.1,
-            end=10.0,
-            width=150
-        )
-        self.primary_scale_slider = pn.widgets.FloatSlider(
-            name="Primary Scale Slider",
-            start=0.1,
-            end=10.0,
-            value=1.0,
-            step=0.1,
-            width=200
+        # Analysis controls
+        self.normalize_prices = pn.widgets.Checkbox(
+            name="Normalize to 100",
+            value=False
         )
 
-        # Primary series offset (text input + slider)
-        self.primary_offset_text = pn.widgets.FloatInput(
-            name="Primary Offset",
-            value=0.0,
-            step=1.0,
-            start=-100.0,
-            end=100.0,
-            width=150
-        )
-        self.primary_offset_slider = pn.widgets.FloatSlider(
-            name="Primary Offset Slider",
-            start=-100.0,
-            end=100.0,
-            value=0.0,
-            step=1.0,
-            width=200
+        self.show_returns = pn.widgets.Checkbox(
+            name="Show % Returns",
+            value=False
         )
 
-        # Secondary series scale (text input + slider)
-        self.secondary_scale_text = pn.widgets.FloatInput(
-            name="Secondary Scale Factor",
-            value=0.1,
-            step=0.01,
-            start=0.001,
-            end=1.0,
-            width=150
-        )
-        self.secondary_scale_slider = pn.widgets.FloatSlider(
-            name="Secondary Scale Slider",
-            start=0.001,
-            end=1.0,
-            value=0.1,
-            step=0.01,
-            width=200
+        # Action buttons
+        self.analyze_button = pn.widgets.Button(
+            name="📊 Analyze Stock",
+            button_type="primary",
+            width=180
         )
 
-        # Secondary series offset (text input + slider)
-        self.secondary_offset_text = pn.widgets.FloatInput(
-            name="Secondary Offset",
-            value=0.0,
-            step=1.0,
-            start=-50.0,
-            end=50.0,
-            width=150
-        )
-        self.secondary_offset_slider = pn.widgets.FloatSlider(
-            name="Secondary Offset Slider",
-            start=-50.0,
-            end=50.0,
-            value=0.0,
-            step=1.0,
-            width=200
+        self.compare_button = pn.widgets.Button(
+            name="📈 Compare Stocks",
+            button_type="success",
+            width=180
         )
 
-        # Multi-series display mode
-        self.display_mode = pn.widgets.RadioButtonGroup(
-            name='Display Mode',
-            options=['Individual Subplots', 'Aligned Overlay'],
-            value='Individual Subplots',
-            button_type='primary'
-        )
-
-        # Standard controls
         self.refresh_button = pn.widgets.Button(
             name="🔄 Refresh Data",
-            button_type="primary",
-            width=150
+            button_type="light",
+            width=180
         )
 
-        self.plot_height = pn.widgets.IntSlider(
-            name="Plot Height",
-            start=300,
-            end=800,
-            value=400,
-            step=50
-        )
-
-        self.show_grid = pn.widgets.Checkbox(
-            name="Show Grid",
-            value=True
-        )
-
-        # Setup bidirectional synchronization for axis controls
-        self._setup_axis_control_sync()
-
-        self.data_info = pn.pane.HTML(
-            """<div style="padding: 10px; background: #f8f9fa; border-radius: 5px;">
-            No data loaded yet. Use Data Fetcher to collect time series data.
+        # Status and progress
+        self.status_indicator = pn.pane.HTML(
+            """<div style="padding: 10px; background: #e9ecef; border-radius: 5px;">
+            <strong>Status:</strong> Ready to analyze stocks
             </div>""",
             width=400
         )
 
-        # Main time series plot
-        self.time_series_plot = pn.pane.Plotly(
-            object=self.create_empty_plot(),
-            height=400,
+        # Main stock chart
+        self.main_chart = pn.pane.Plotly(
+            object=self._create_empty_chart(),
+            height=500,
+            sizing_mode='stretch_width'
+        )
+
+        # Volume chart
+        self.volume_chart = pn.pane.Plotly(
+            object=self._create_empty_volume_chart(),
+            height=200,
+            sizing_mode='stretch_width'
+        )
+
+        # Technical indicators chart
+        self.indicators_chart = pn.pane.Plotly(
+            object=self._create_empty_indicators_chart(),
+            height=200,
             sizing_mode='stretch_width'
         )
 
         # Statistics panel
         self.stats_panel = pn.pane.HTML(
-            self.create_empty_stats(),
-            width=400
+            self._create_empty_stats(),
+            width=400,
+            height=400
+        )
+
+        # Performance comparison table
+        self.comparison_table = pn.widgets.Tabulator(
+            value=pd.DataFrame(),
+            pagination='remote',
+            page_size=10,
+            height=250,
+            sizing_mode='stretch_width'
         )
 
         # Setup callbacks
-        self.refresh_button.on_click(self.refresh_data)
-        self.y_scale_toggle.param.watch(self.update_plot_scale, 'value')
-        self.plot_height.param.watch(self.update_plot_height, 'value')
-        self.show_grid.param.watch(self.update_plot_grid, 'value')
+        self.stock_selector.param.watch(self._on_stock_change, 'value')
+        self.chart_type.param.watch(self._update_charts, 'value')
+        self.time_period.param.watch(self._update_charts, 'value')
+        self.y_scale_toggle.param.watch(self._update_charts, 'value')
 
-        # Setup callbacks for axis controls
-        for control in [self.primary_scale_text, self.primary_scale_slider,
-                       self.primary_offset_text, self.primary_offset_slider,
-                       self.secondary_scale_text, self.secondary_scale_slider,
-                       self.secondary_offset_text, self.secondary_offset_slider,
-                       self.display_mode]:
-            control.param.watch(self.update_visualization, 'value')
+        # Technical indicator callbacks
+        for widget in [self.show_volume, self.show_sma, self.show_bollinger,
+                      self.show_rsi, self.normalize_prices, self.show_returns]:
+            widget.param.watch(self._update_charts, 'value')
 
-        # Initial data load
-        self.current_data = None
-        self.load_data_on_startup()
+        self.sma_periods.param.watch(self._update_charts, 'value')
 
-    def _setup_axis_control_sync(self):
-        """Setup bidirectional synchronization between text inputs and sliders"""
+        self.analyze_button.on_click(self._analyze_stock)
+        self.compare_button.on_click(self._compare_stocks)
+        self.refresh_button.on_click(self._refresh_data)
 
-        # Primary scale synchronization
-        def sync_primary_scale_to_slider(event):
-            self.primary_scale_slider.value = self.primary_scale_text.value
-        def sync_primary_scale_to_text(event):
-            self.primary_scale_text.value = self.primary_scale_slider.value
-
-        # Primary offset synchronization
-        def sync_primary_offset_to_slider(event):
-            self.primary_offset_slider.value = self.primary_offset_text.value
-        def sync_primary_offset_to_text(event):
-            self.primary_offset_text.value = self.primary_offset_slider.value
-
-        # Secondary scale synchronization
-        def sync_secondary_scale_to_slider(event):
-            self.secondary_scale_slider.value = self.secondary_scale_text.value
-        def sync_secondary_scale_to_text(event):
-            self.secondary_scale_text.value = self.secondary_scale_slider.value
-
-        # Secondary offset synchronization
-        def sync_secondary_offset_to_slider(event):
-            self.secondary_offset_slider.value = self.secondary_offset_text.value
-        def sync_secondary_offset_to_text(event):
-            self.secondary_offset_text.value = self.secondary_offset_slider.value
-
-        # Wire up synchronization
-        self.primary_scale_text.param.watch(sync_primary_scale_to_slider, 'value')
-        self.primary_scale_slider.param.watch(sync_primary_scale_to_text, 'value')
-        self.primary_offset_text.param.watch(sync_primary_offset_to_slider, 'value')
-        self.primary_offset_slider.param.watch(sync_primary_offset_to_text, 'value')
-
-        self.secondary_scale_text.param.watch(sync_secondary_scale_to_slider, 'value')
-        self.secondary_scale_slider.param.watch(sync_secondary_scale_to_text, 'value')
-        self.secondary_offset_text.param.watch(sync_secondary_offset_to_slider, 'value')
-        self.secondary_offset_slider.param.watch(sync_secondary_offset_to_text, 'value')
+        # Don't load initial data - wait for user to click analyze
+        # self._load_initial_data()
 
     def create_app(self):
-        """Create the time series analyzer interface"""
+        """Create the stock analyzer interface"""
 
         # Navigation bar
-        navigation = create_navigation_bar(current_app='time_series_analyzer')
+        navigation = create_navigation_bar(current_app='stock_analyzer')
 
         # Status indicator
         status = create_app_status_indicator()
 
         # Header
         header = pn.pane.HTML("""
-        <div style="background: linear-gradient(90deg, #007bff, #0056b3); padding: 20px; color: white; border-radius: 5px; margin-bottom: 20px;">
-            <h2 style="margin: 0;">📈 Time Series Analyzer - Enhanced Individual Axis Control</h2>
-            <p style="margin: 5px 0 0 0;">Advanced data alignment with synchronized sliders + text inputs</p>
+        <div style="background: linear-gradient(90deg, #FF6B35, #F7931E); padding: 20px; color: white; border-radius: 5px; margin-bottom: 20px;">
+            <h2 style="margin: 0;">📈 Stock Analyzer - Advanced Charts & Technical Analysis</h2>
+            <p style="margin: 5px 0 0 0;">Interactive candlestick charts, technical indicators, and comparative analysis</p>
         </div>
         """, sizing_mode='stretch_width')
 
-        # Individual Axis Controls Panel
-        axis_controls = pn.Column(
-            "## 🎛️ Individual Axis Controls",
-            self.display_mode,
-            "### Primary Series",
-            pn.Row(self.primary_scale_text, self.primary_scale_slider),
-            pn.Row(self.primary_offset_text, self.primary_offset_slider),
-            "### Secondary Series",
-            pn.Row(self.secondary_scale_text, self.secondary_scale_slider),
-            pn.Row(self.secondary_offset_text, self.secondary_offset_slider),
-            width=500
-        )
-
-        # Standard control panel
+        # Control panel
         control_panel = pn.Column(
-            "## 📊 Plot Settings",
+            "## 🎯 Stock Selection",
+            self.stock_selector,
+            self.comparison_stock,
+            self.time_period,
+            "## 📊 Chart Settings",
+            self.chart_type,
             self.y_scale_toggle,
-            self.plot_height,
-            self.show_grid,
+            self.normalize_prices,
+            self.show_returns,
+            "## 🔧 Technical Indicators",
+            self.show_volume,
+            self.show_sma,
+            self.sma_periods,
+            self.show_bollinger,
+            self.show_rsi,
+            "## ⚡ Actions",
+            self.analyze_button,
+            self.compare_button,
             self.refresh_button,
-            "## 📊 Data Information",
-            self.data_info,
-            "## 📈 Statistics",
-            self.stats_panel,
-            width=400
+            width=300
         )
 
-        # Main visualization panel
-        viz_panel = pn.Column(
-            "## 📊 Time Series Visualization",
-            self.time_series_plot,
+        # Chart panel
+        chart_panel = pn.Column(
+            "## 📊 Price Chart",
+            self.main_chart,
+            "## 📊 Volume",
+            self.volume_chart,
+            "## 📊 Technical Indicators",
+            self.indicators_chart,
             sizing_mode='stretch_width'
+        )
+
+        # Analysis panel
+        analysis_panel = pn.Column(
+            "## 📈 Stock Statistics",
+            self.status_indicator,
+            self.stats_panel,
+            "## 📊 Performance Comparison",
+            self.comparison_table,
+            width=400
         )
 
         # Main layout
@@ -263,307 +250,560 @@ class DataAnalyzerApp:
             status,
             header,
             pn.Row(
-                pn.Column(axis_controls, control_panel),
-                viz_panel,
+                control_panel,
+                chart_panel,
+                analysis_panel,
                 sizing_mode='stretch_width'
             ),
             sizing_mode='stretch_width'
         )
 
-    def load_data_on_startup(self):
-        """Load existing data when app starts"""
+    def _get_stock_options(self):
+        """Get available stock options from database"""
         try:
-            time_series_data = shared_store.load_time_series_data()
-            if time_series_data:
-                self.current_data = time_series_data
-                self.update_visualization()
-                self.update_data_info()
+            stocks = shared_store.get_stocks_by_category()
+            options = [(f"{row['symbol']} - {row['name']}", row['symbol']) for _, row in stocks.iterrows()]
+            return options
         except Exception as e:
-            print(f"Error loading data on startup: {e}")
+            return [("AAPL - Apple Inc.", "AAPL")]
 
-    def refresh_data(self, event):
-        """Refresh data from shared store"""
+    def _get_selected_symbol(self):
+        """Get the actual symbol from stock selector (handles tuple values)"""
+        value = self.stock_selector.value
+        # If value is a tuple (label, symbol), return just the symbol
+        if isinstance(value, tuple):
+            return value[1]
+        return value
+
+    def _get_comparison_symbol(self):
+        """Get the actual symbol from comparison selector (handles tuple values)"""
+        value = self.comparison_stock.value
+        # If value is a tuple (label, symbol), return just the symbol
+        if isinstance(value, tuple):
+            return value[1]
+        return value
+
+    def _on_stock_change(self, event):
+        """Handle stock selection change"""
+        self._load_stock_data()
+
+    async def _analyze_stock(self, event):
+        """Analyze selected stock"""
+        self.update_status("📊 Analyzing stock data...", "info")
+
         try:
-            time_series_data = shared_store.load_time_series_data()
-            if time_series_data:
-                self.current_data = time_series_data
-                self.update_visualization()
-                self.update_data_info()
-                self.update_status("✅ Data refreshed successfully")
+            symbol = self._get_selected_symbol()
+
+            # Ensure we have data
+            result = shared_store.fetch_stock_data(symbol, full_history=False)
+
+            if result['success']:
+                self._load_stock_data()
+                self.update_status(f"✅ Analysis complete for {symbol}", "success")
             else:
-                self.update_status("⚠️ No data available. Use Data Fetcher first.")
+                self.update_status(f"❌ Error: {result.get('error', 'Unknown error')}", "error")
+
         except Exception as e:
-            self.update_status(f"❌ Error refreshing data: {str(e)}")
+            self.update_status(f"❌ Analysis error: {str(e)}", "error")
 
-    def update_plot_scale(self, event):
-        """Update Y-axis scale (Linear/Log toggle)"""
-        if self.current_data:
-            self.update_visualization()
+    async def _compare_stocks(self, event):
+        """Compare two stocks"""
+        if not self._get_comparison_symbol():
+            self.update_status("❌ Please select a comparison stock", "warning")
+            return
 
-    def update_plot_height(self, event):
-        """Update plot height"""
-        self.time_series_plot.height = self.plot_height.value
-        if self.current_data:
-            self.update_visualization()
+        self.update_status("📈 Comparing stocks...", "info")
 
-    def update_plot_grid(self, event):
-        """Update grid visibility"""
-        if self.current_data:
-            self.update_visualization()
+        try:
+            primary = self._get_selected_symbol()
+            comparison = self._get_comparison_symbol()
 
-    def update_visualization(self):
-        """Update the main time series visualization with individual axis controls"""
-        if not self.current_data or not self.current_data.get('data'):
-            self.time_series_plot.object = self.create_empty_plot()
+            # Fetch data for both stocks
+            for symbol in [primary, comparison]:
+                result = shared_store.fetch_stock_data(symbol, full_history=False)
+                if not result['success']:
+                    self.update_status(f"❌ Error fetching {symbol}: {result.get('error')}", "error")
+                    return
+
+            # Update charts with comparison
+            self._update_charts()
+            self._update_comparison_table()
+
+            self.update_status(f"✅ Comparison complete: {primary} vs {comparison}", "success")
+
+        except Exception as e:
+            self.update_status(f"❌ Comparison error: {str(e)}", "error")
+
+    async def _refresh_data(self, event):
+        """Refresh stock data"""
+        self.update_status("🔄 Refreshing data...", "info")
+
+        try:
+            symbol = self._get_selected_symbol()
+            result = shared_store.fetch_stock_data(symbol, full_history=True)
+
+            if result['success']:
+                self._load_stock_data()
+                self.update_status(f"✅ Data refreshed for {symbol}", "success")
+            else:
+                self.update_status(f"❌ Refresh error: {result.get('error')}", "error")
+
+        except Exception as e:
+            self.update_status(f"❌ Refresh error: {str(e)}", "error")
+
+    def _load_initial_data(self):
+        """Load initial stock data"""
+        self._load_stock_data()
+
+    def _load_stock_data(self):
+        """Load and process stock data"""
+        try:
+            symbol = self._get_selected_symbol()
+            print(f"📊 Loading data for symbol: {symbol}")
+            price_data = shared_store.get_stock_prices(symbol)
+
+            if not price_data.empty:
+                print(f"✅ Loaded {len(price_data)} records for {symbol}")
+                self.current_data = price_data
+                self._update_charts()
+                self._update_statistics()
+            else:
+                print(f"⚠️ No data found for {symbol}")
+                self.current_data = pd.DataFrame()
+                self._show_no_data_charts()
+
+        except Exception as e:
+            print(f"❌ Error loading stock data: {e}")
+            self.current_data = pd.DataFrame()
+            self._show_no_data_charts()
+
+    def _update_charts(self, event=None):
+        """Update all charts"""
+        if hasattr(self, 'current_data') and not self.current_data.empty:
+            self._update_main_chart()
+            self._update_volume_chart()
+            self._update_indicators_chart()
+        else:
+            self._show_no_data_charts()
+
+    def _update_main_chart(self):
+        """Update main price chart"""
+        try:
+            data = self._filter_data_by_period(self.current_data)
+
+            if data.empty:
+                self.main_chart.object = self._create_empty_chart()
+                return
+
+            # Create base chart
+            if self.chart_type.value == "Candlestick":
+                fig = go.Figure(data=go.Candlestick(
+                    x=pd.to_datetime(data['date']),
+                    open=data['open_price'],
+                    high=data['high_price'],
+                    low=data['low_price'],
+                    close=data['close_price'],
+                    name=self._get_selected_symbol()
+                ))
+            elif self.chart_type.value == "Line":
+                fig = go.Figure(data=go.Scatter(
+                    x=pd.to_datetime(data['date']),
+                    y=data['close_price'],
+                    mode='lines',
+                    name=self._get_selected_symbol(),
+                    line=dict(width=2)
+                ))
+            else:  # OHLC
+                fig = go.Figure(data=go.Ohlc(
+                    x=pd.to_datetime(data['date']),
+                    open=data['open_price'],
+                    high=data['high_price'],
+                    low=data['low_price'],
+                    close=data['close_price'],
+                    name=self._get_selected_symbol()
+                ))
+
+            # Add comparison stock if selected
+            if self._get_comparison_symbol():
+                comp_data = shared_store.get_stock_prices(self._get_comparison_symbol())
+                if not comp_data.empty:
+                    comp_data = self._filter_data_by_period(comp_data)
+
+                    if self.normalize_prices.value:
+                        # Normalize both to 100
+                        data_norm = (data['close_price'] / data['close_price'].iloc[0]) * 100
+                        comp_norm = (comp_data['close_price'] / comp_data['close_price'].iloc[0]) * 100
+
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(
+                            x=pd.to_datetime(data['date']),
+                            y=data_norm,
+                            mode='lines',
+                            name=self._get_selected_symbol(),
+                            line=dict(width=2)
+                        ))
+                        fig.add_trace(go.Scatter(
+                            x=pd.to_datetime(comp_data['date']),
+                            y=comp_norm,
+                            mode='lines',
+                            name=self._get_comparison_symbol(),
+                            line=dict(width=2, dash='dash')
+                        ))
+                    else:
+                        fig.add_trace(go.Scatter(
+                            x=pd.to_datetime(comp_data['date']),
+                            y=comp_data['close_price'],
+                            mode='lines',
+                            name=self._get_comparison_symbol(),
+                            line=dict(width=2, dash='dash'),
+                            yaxis='y2'
+                        ))
+
+            # Add moving averages
+            if self.show_sma.value and self.sma_periods.value:
+                for period in self.sma_periods.value:
+                    sma = data['close_price'].rolling(window=period).mean()
+                    fig.add_trace(go.Scatter(
+                        x=pd.to_datetime(data['date']),
+                        y=sma,
+                        mode='lines',
+                        name=f'SMA {period}',
+                        line=dict(width=1),
+                        opacity=0.7
+                    ))
+
+            # Add Bollinger Bands
+            if self.show_bollinger.value:
+                sma_20 = data['close_price'].rolling(window=20).mean()
+                std_20 = data['close_price'].rolling(window=20).std()
+                upper_band = sma_20 + (std_20 * 2)
+                lower_band = sma_20 - (std_20 * 2)
+
+                fig.add_trace(go.Scatter(
+                    x=pd.to_datetime(data['date']),
+                    y=upper_band,
+                    mode='lines',
+                    name='BB Upper',
+                    line=dict(color='rgba(255,0,0,0.3)', width=1)
+                ))
+                fig.add_trace(go.Scatter(
+                    x=pd.to_datetime(data['date']),
+                    y=lower_band,
+                    mode='lines',
+                    name='BB Lower',
+                    line=dict(color='rgba(255,0,0,0.3)', width=1),
+                    fill='tonexty'
+                ))
+
+            # Configure layout
+            layout_updates = {
+                'title': f"{self._get_selected_symbol()} - {self.chart_type.value} Chart ({self.time_period.value})",
+                'xaxis_title': "Date",
+                'yaxis_title': "Price (USD)",
+                'height': 500,
+                'template': 'plotly_white',
+                'xaxis_rangeslider_visible': False
+            }
+
+            if self.y_scale_toggle.value == 'Log':
+                layout_updates['yaxis_type'] = 'log'
+
+            if self._get_comparison_symbol() and not self.normalize_prices.value:
+                layout_updates['yaxis2'] = dict(
+                    title=f"{self._get_comparison_symbol()} Price",
+                    overlaying='y',
+                    side='right'
+                )
+
+            fig.update_layout(**layout_updates)
+            self.main_chart.object = fig
+
+        except Exception as e:
+            print(f"❌ Error creating main chart: {e}")
+            import traceback
+            traceback.print_exc()
+            self.main_chart.object = self._create_empty_chart()
+
+    def _update_volume_chart(self):
+        """Update volume chart"""
+        if not self.show_volume.value:
+            self.volume_chart.object = self._create_empty_volume_chart()
             return
 
         try:
-            # Extract data
-            data_points = self.current_data['data']
-            df = pd.DataFrame(data_points)
+            data = self._filter_data_by_period(self.current_data)
 
-            if df.empty:
-                self.time_series_plot.object = self.create_empty_plot()
+            if data.empty:
+                self.volume_chart.object = self._create_empty_volume_chart()
                 return
 
-            # Convert timestamp to datetime if needed
-            if 'timestamp' in df.columns:
-                df['timestamp'] = pd.to_datetime(df['timestamp'])
-            else:
-                # Create timestamps if missing
-                df['timestamp'] = pd.date_range(
-                    start=datetime.now() - timedelta(hours=len(df)),
-                    periods=len(df),
-                    freq='H'
-                )
+            fig = go.Figure(data=go.Bar(
+                x=pd.to_datetime(data['date']),
+                y=data['volume'],
+                name='Volume',
+                marker_color='rgba(0,100,200,0.6)'
+            ))
 
-            # Generate secondary data for demonstration (in real app, this would come from shared store)
-            secondary_data = df['value'].values * 0.5 + np.random.randn(len(df)) * 2
+            fig.update_layout(
+                title=f"{self.stock_selector.value} - Volume",
+                xaxis_title="Date",
+                yaxis_title="Volume",
+                height=200,
+                template='plotly_white',
+                showlegend=False
+            )
 
-            # Apply individual axis transformations
-            primary_transformed = df['value'] * self.primary_scale_text.value + self.primary_offset_text.value
-            secondary_transformed = secondary_data * self.secondary_scale_text.value + self.secondary_offset_text.value
-
-            # Apply Y-axis scale (Linear/Log toggle feature)
-            y_axis_type = 'log' if self.y_scale_toggle.value == 'Log' else 'linear'
-
-            if self.display_mode.value == "Individual Subplots":
-                # Create subplots with individual axis controls
-                from plotly.subplots import make_subplots
-                fig = make_subplots(
-                    rows=2, cols=1,
-                    subplot_titles=[
-                        f"Primary Series (×{self.primary_scale_text.value:.1f} +{self.primary_offset_text.value:.0f})",
-                        f"Secondary Series (×{self.secondary_scale_text.value:.3f} +{self.secondary_offset_text.value:.0f})"
-                    ],
-                    vertical_spacing=0.15
-                )
-
-                # Add primary series
-                fig.add_trace(go.Scatter(
-                    x=df['timestamp'],
-                    y=primary_transformed,
-                    mode='lines+markers',
-                    name='Primary Series',
-                    line=dict(width=2, color='#007bff'),
-                    marker=dict(size=4, color='#007bff')
-                ), row=1, col=1)
-
-                # Add secondary series
-                fig.add_trace(go.Scatter(
-                    x=df['timestamp'],
-                    y=secondary_transformed,
-                    mode='lines+markers',
-                    name='Secondary Series',
-                    line=dict(width=2, color='#e74c3c'),
-                    marker=dict(size=4, color='#e74c3c')
-                ), row=2, col=1)
-
-                # Update layout for subplots
-                fig.update_layout(
-                    title=f"Individual Axis Control - {self.current_data.get('source_name', 'Time Series')} ({self.y_scale_toggle.value} Scale)",
-                    height=self.plot_height.value + 200,
-                    showlegend=True,
-                    template='plotly_white'
-                )
-
-                # Update individual Y-axes
-                fig.update_yaxes(title_text="Primary Values", type=y_axis_type, showgrid=self.show_grid.value, row=1, col=1)
-                fig.update_yaxes(title_text="Secondary Values", type=y_axis_type, showgrid=self.show_grid.value, row=2, col=1)
-                fig.update_xaxes(showgrid=self.show_grid.value)
-
-            else:  # Aligned Overlay
-                # Create overlay plot with aligned axes
-                fig = go.Figure()
-
-                # Add primary series
-                fig.add_trace(go.Scatter(
-                    x=df['timestamp'],
-                    y=primary_transformed,
-                    mode='lines+markers',
-                    name=f'Primary (×{self.primary_scale_text.value:.1f} +{self.primary_offset_text.value:.0f})',
-                    line=dict(width=3, color='#007bff'),
-                    marker=dict(size=6, color='#007bff')
-                ))
-
-                # Add secondary series
-                fig.add_trace(go.Scatter(
-                    x=df['timestamp'],
-                    y=secondary_transformed,
-                    mode='lines+markers',
-                    name=f'Secondary (×{self.secondary_scale_text.value:.3f} +{self.secondary_offset_text.value:.0f})',
-                    line=dict(width=2, color='#e74c3c', dash='dash'),
-                    marker=dict(size=4, color='#e74c3c')
-                ))
-
-                # Update layout for overlay
-                fig.update_layout(
-                    title=f"Aligned Multi-Series - {self.current_data.get('source_name', 'Time Series')} ({self.y_scale_toggle.value} Scale)",
-                    xaxis_title="Time",
-                    yaxis_title="Aligned Values",
-                    yaxis_type=y_axis_type,
-                    height=self.plot_height.value,
-                    showlegend=True,
-                    hovermode='x unified',
-                    template='plotly_white',
-                    xaxis=dict(showgrid=self.show_grid.value),
-                    yaxis=dict(showgrid=self.show_grid.value)
-                )
-
-            self.time_series_plot.object = fig
-            self.update_statistics(df)
+            self.volume_chart.object = fig
 
         except Exception as e:
-            print(f"Error updating visualization: {e}")
-            self.time_series_plot.object = self.create_error_plot(str(e))
+            self.volume_chart.object = self._create_empty_volume_chart()
 
-    def create_empty_plot(self):
-        """Create empty plot placeholder"""
+    def _update_indicators_chart(self):
+        """Update technical indicators chart"""
+        if not self.show_rsi.value:
+            self.indicators_chart.object = self._create_empty_indicators_chart()
+            return
+
+        try:
+            data = self._filter_data_by_period(self.current_data)
+
+            if data.empty or len(data) < 14:
+                self.indicators_chart.object = self._create_empty_indicators_chart()
+                return
+
+            # Calculate RSI
+            rsi = self._calculate_rsi(data['close_price'], 14)
+
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=pd.to_datetime(data['date']),
+                y=rsi,
+                mode='lines',
+                name='RSI (14)',
+                line=dict(color='purple', width=2)
+            ))
+
+            # Add RSI reference lines
+            fig.add_hline(y=70, line_dash="dash", line_color="red", opacity=0.5)
+            fig.add_hline(y=30, line_dash="dash", line_color="green", opacity=0.5)
+            fig.add_hline(y=50, line_dash="dash", line_color="gray", opacity=0.3)
+
+            fig.update_layout(
+                title=f"{self.stock_selector.value} - RSI (14)",
+                xaxis_title="Date",
+                yaxis_title="RSI",
+                yaxis_range=[0, 100],
+                height=200,
+                template='plotly_white'
+            )
+
+            self.indicators_chart.object = fig
+
+        except Exception as e:
+            self.indicators_chart.object = self._create_empty_indicators_chart()
+
+    def _calculate_rsi(self, prices, period=14):
+        """Calculate RSI indicator"""
+        delta = prices.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
+
+    def _filter_data_by_period(self, data):
+        """Filter data by selected time period"""
+        if data.empty:
+            return data
+
+        end_date = datetime.now()
+        if self.time_period.value == "1M":
+            start_date = end_date - timedelta(days=30)
+        elif self.time_period.value == "3M":
+            start_date = end_date - timedelta(days=90)
+        elif self.time_period.value == "6M":
+            start_date = end_date - timedelta(days=180)
+        elif self.time_period.value == "1Y":
+            start_date = end_date - timedelta(days=365)
+        elif self.time_period.value == "2Y":
+            start_date = end_date - timedelta(days=730)
+        elif self.time_period.value == "5Y":
+            start_date = end_date - timedelta(days=1825)
+        else:  # MAX
+            return data
+
+        return data[data['date'] >= start_date.strftime('%Y-%m-%d')]
+
+    def _update_statistics(self):
+        """Update statistics panel"""
+        try:
+            data = self._filter_data_by_period(self.current_data)
+
+            if data.empty:
+                self.stats_panel.object = self._create_empty_stats()
+                return
+
+            # Calculate statistics
+            latest_price = data['close_price'].iloc[-1]
+            period_return = ((latest_price - data['close_price'].iloc[0]) / data['close_price'].iloc[0]) * 100
+            volatility = data['close_price'].pct_change().std() * np.sqrt(252) * 100  # Annualized
+
+            high_52w = data['high_price'].max()
+            low_52w = data['low_price'].min()
+            avg_volume = data['volume'].mean()
+
+            stats_html = f"""
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; font-family: 'Arial', sans-serif;">
+                <h4 style="margin-top: 0; color: #495057;">{self.stock_selector.value} Statistics</h4>
+                <table style="width: 100%; font-size: 14px;">
+                    <tr><td><strong>Latest Price:</strong></td><td>${latest_price:.2f}</td></tr>
+                    <tr><td><strong>Period Return:</strong></td><td style="color: {'green' if period_return >= 0 else 'red'}">{period_return:.2f}%</td></tr>
+                    <tr><td><strong>Volatility (Ann.):</strong></td><td>{volatility:.2f}%</td></tr>
+                    <tr><td><strong>52W High:</strong></td><td>${high_52w:.2f}</td></tr>
+                    <tr><td><strong>52W Low:</strong></td><td>${low_52w:.2f}</td></tr>
+                    <tr><td><strong>Avg Volume:</strong></td><td>{avg_volume:,.0f}</td></tr>
+                    <tr><td><strong>Data Points:</strong></td><td>{len(data)}</td></tr>
+                    <tr><td><strong>Period:</strong></td><td>{self.time_period.value}</td></tr>
+                </table>
+            </div>
+            """
+
+            self.stats_panel.object = stats_html
+
+        except Exception as e:
+            self.stats_panel.object = self._create_empty_stats()
+
+    def _update_comparison_table(self):
+        """Update performance comparison table"""
+        try:
+            if not self._get_comparison_symbol():
+                self.comparison_table.value = pd.DataFrame()
+                return
+
+            primary_data = self._filter_data_by_period(self.current_data)
+            comp_data = shared_store.get_stock_prices(self._get_comparison_symbol())
+            comp_data = self._filter_data_by_period(comp_data)
+
+            if primary_data.empty or comp_data.empty:
+                return
+
+            # Calculate comparison metrics
+            primary_return = ((primary_data['close_price'].iloc[-1] - primary_data['close_price'].iloc[0]) / primary_data['close_price'].iloc[0]) * 100
+            comp_return = ((comp_data['close_price'].iloc[-1] - comp_data['close_price'].iloc[0]) / comp_data['close_price'].iloc[0]) * 100
+
+            primary_vol = primary_data['close_price'].pct_change().std() * np.sqrt(252) * 100
+            comp_vol = comp_data['close_price'].pct_change().std() * np.sqrt(252) * 100
+
+            comparison_df = pd.DataFrame({
+                'Metric': ['Return (%)', 'Volatility (%)', 'Max Price', 'Min Price', 'Avg Volume'],
+                self.stock_selector.value: [
+                    f"{primary_return:.2f}%",
+                    f"{primary_vol:.2f}%",
+                    f"${primary_data['high_price'].max():.2f}",
+                    f"${primary_data['low_price'].min():.2f}",
+                    f"{primary_data['volume'].mean():,.0f}"
+                ],
+                self._get_comparison_symbol(): [
+                    f"{comp_return:.2f}%",
+                    f"{comp_vol:.2f}%",
+                    f"${comp_data['high_price'].max():.2f}",
+                    f"${comp_data['low_price'].min():.2f}",
+                    f"{comp_data['volume'].mean():,.0f}"
+                ]
+            })
+
+            self.comparison_table.value = comparison_df
+
+        except Exception as e:
+            self.comparison_table.value = pd.DataFrame()
+
+    def _show_no_data_charts(self):
+        """Show empty charts when no data available"""
+        self.main_chart.object = self._create_empty_chart()
+        self.volume_chart.object = self._create_empty_volume_chart()
+        self.indicators_chart.object = self._create_empty_indicators_chart()
+        self.stats_panel.object = self._create_empty_stats()
+
+    def _create_empty_chart(self):
+        """Create empty main chart"""
         fig = go.Figure()
         fig.add_annotation(
-            text="No data available<br>Use Data Fetcher to collect time series data",
+            text="Select a stock and click 'Analyze Stock' to view chart",
             xref="paper", yref="paper",
             x=0.5, y=0.5,
             showarrow=False,
             font=dict(size=16, color="gray")
         )
         fig.update_layout(
-            title="Time Series Visualization",
-            xaxis_title="Time",
-            yaxis_title="Value",
-            height=self.plot_height.value,
+            title="Stock Price Chart",
+            xaxis_title="Date",
+            yaxis_title="Price (USD)",
+            height=500,
             template='plotly_white'
         )
         return fig
 
-    def create_error_plot(self, error_message):
-        """Create error plot"""
+    def _create_empty_volume_chart(self):
+        """Create empty volume chart"""
         fig = go.Figure()
         fig.add_annotation(
-            text=f"Error loading data:<br>{error_message}",
+            text="Volume chart will appear here",
             xref="paper", yref="paper",
             x=0.5, y=0.5,
             showarrow=False,
-            font=dict(size=14, color="red")
+            font=dict(size=14, color="gray")
         )
         fig.update_layout(
-            title="Time Series Visualization - Error",
-            xaxis_title="Time",
-            yaxis_title="Value",
-            height=self.plot_height.value,
+            title="Volume",
+            xaxis_title="Date",
+            yaxis_title="Volume",
+            height=200,
             template='plotly_white'
         )
         return fig
 
-    def update_statistics(self, df):
-        """Update statistics panel"""
-        try:
-            values = df['value'].dropna()
-            if len(values) == 0:
-                self.stats_panel.object = self.create_empty_stats()
-                return
+    def _create_empty_indicators_chart(self):
+        """Create empty indicators chart"""
+        fig = go.Figure()
+        fig.add_annotation(
+            text="Technical indicators will appear here",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5,
+            showarrow=False,
+            font=dict(size=14, color="gray")
+        )
+        fig.update_layout(
+            title="Technical Indicators",
+            xaxis_title="Date",
+            yaxis_title="Value",
+            height=200,
+            template='plotly_white'
+        )
+        return fig
 
-            stats = {
-                'count': len(values),
-                'mean': values.mean(),
-                'median': values.median(),
-                'std': values.std(),
-                'min': values.min(),
-                'max': values.max(),
-                'range': values.max() - values.min()
-            }
-
-            stats_html = f"""
-            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; font-family: monospace;">
-                <h4 style="margin-top: 0;">Basic Statistics</h4>
-                <table style="width: 100%;">
-                    <tr><td><strong>Count:</strong></td><td>{stats['count']}</td></tr>
-                    <tr><td><strong>Mean:</strong></td><td>{stats['mean']:.4f}</td></tr>
-                    <tr><td><strong>Median:</strong></td><td>{stats['median']:.4f}</td></tr>
-                    <tr><td><strong>Std Dev:</strong></td><td>{stats['std']:.4f}</td></tr>
-                    <tr><td><strong>Min:</strong></td><td>{stats['min']:.4f}</td></tr>
-                    <tr><td><strong>Max:</strong></td><td>{stats['max']:.4f}</td></tr>
-                    <tr><td><strong>Range:</strong></td><td>{stats['range']:.4f}</td></tr>
-                </table>
-                <p style="margin-bottom: 0; font-size: 12px; color: #666;">
-                    Y-axis: {self.y_scale_toggle.value} Scale
-                </p>
-            </div>
-            """
-            self.stats_panel.object = stats_html
-
-        except Exception as e:
-            self.stats_panel.object = f"""
-            <div style="background: #f8d7da; padding: 10px; border-radius: 5px; color: #721c24;">
-                Error calculating statistics: {str(e)}
-            </div>
-            """
-
-    def create_empty_stats(self):
+    def _create_empty_stats(self):
         """Create empty statistics panel"""
         return """
         <div style="background: #f8f9fa; padding: 15px; border-radius: 5px;">
-            <h4 style="margin-top: 0;">Statistics</h4>
-            <p style="color: #666; margin: 0;">No data available for analysis</p>
+            <h4 style="margin-top: 0;">Stock Statistics</h4>
+            <p style="color: #666; margin: 0;">Select a stock and analyze to view statistics</p>
         </div>
         """
 
-    def update_data_info(self):
-        """Update data information panel"""
-        if not self.current_data:
-            self.data_info.object = """
-            <div style="padding: 10px; background: #f8f9fa; border-radius: 5px;">
-                No data loaded yet. Use Data Fetcher to collect time series data.
-            </div>
-            """
-            return
+    def update_status(self, message, status_type="info"):
+        """Update status indicator"""
+        colors = {
+            "info": "#007bff",
+            "success": "#28a745",
+            "warning": "#ffc107",
+            "error": "#dc3545"
+        }
 
-        try:
-            metadata = self.current_data.get('metadata', {})
-            data_points = len(self.current_data.get('data', []))
-            timestamp = self.current_data.get('timestamp', 'Unknown')
+        self.status_indicator.object = f"""
+        <div style="padding: 10px; background: {colors.get(status_type, '#e9ecef')}; color: white; border-radius: 5px;">
+            <strong>Status:</strong> {message}
+        </div>
+        """
 
-            info_html = f"""
-            <div style="background: #d4edda; padding: 15px; border-radius: 5px; border: 1px solid #c3e6cb;">
-                <h4 style="margin-top: 0; color: #155724;">📊 Data Information</h4>
-                <table style="width: 100%;">
-                    <tr><td><strong>Source:</strong></td><td>{self.current_data.get('source_name', 'Unknown')}</td></tr>
-                    <tr><td><strong>Data Points:</strong></td><td>{data_points}</td></tr>
-                    <tr><td><strong>Last Updated:</strong></td><td>{timestamp[:19] if timestamp else 'Unknown'}</td></tr>
-                    <tr><td><strong>API URL:</strong></td><td>{metadata.get('api_url', 'N/A')[:50]}...</td></tr>
-                    <tr><td><strong>Data Path:</strong></td><td>{metadata.get('data_path', 'N/A')}</td></tr>
-                </table>
-            </div>
-            """
-            self.data_info.object = info_html
-
-        except Exception as e:
-            self.data_info.object = f"""
-            <div style="background: #f8d7da; padding: 10px; border-radius: 5px; color: #721c24;">
-                Error loading data info: {str(e)}
-            </div>
-            """
-
-    def update_status(self, message):
-        """Update status (placeholder for now)"""
-        print(f"Time Series Analyzer: {message}")
+# Backward compatibility alias
+DataAnalyzerApp = StockAnalyzerApp
